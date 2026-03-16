@@ -1,0 +1,28 @@
+.env
+.env.sample
+# --- ML Specific ---
+cache/
+logs/
+mlartifacts/
+mlflow.db
+outputs/
+output/
+unsloth_compiled_cache/
+unsloth_training_checkpoints/
+_unsloth_sentencepiece_temp/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+build/
+dist/
+
+# --- Environment Variables (CRITICAL) ---
+.env
+
+# --- OS ---
+.DS_Store
+Thumbs.db

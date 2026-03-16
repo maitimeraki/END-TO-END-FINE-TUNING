@@ -1,0 +1,16 @@
+data/
+logs/
+# Ignore training artifacts and local logs
+cache/
+logs/
+outputs/
+research/         # You don't need notebooks in production
+.git/             # Keeps image size down
+.github/
+
+# Ignore local envs
+.venv/
+node_modules/      # If you have frontend code here
+
+# Ignore training-only files
+unsloth_training_checkpoints/
