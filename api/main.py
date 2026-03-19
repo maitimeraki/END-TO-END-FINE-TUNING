@@ -5,7 +5,6 @@ from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.responses import StreamingResponse
 from fastapi.security.api_key import APIKeyHeader
 from prometheus_fastapi_instrumentator import Instrumentator
-from threading import Thread
 from src.service.inference import engine  # Your logic moved to src/inference.py
 from config import ChatRequest  # Your Pydantic model for request validation
 
