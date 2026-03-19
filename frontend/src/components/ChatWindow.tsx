@@ -12,6 +12,14 @@ const ChatWindow: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const feedRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const userStoppedRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (feedRef.current) {
@@ -27,6 +35,10 @@ const ChatWindow: React.FC = () => {
     const text = input.trim();
     if (!text || isTyping) return;
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    userStoppedRef.current = false;
+
     setMessages((prev) => [
       ...prev,
       { role: "user", content: text },
@@ -40,6 +52,7 @@ const ChatWindow: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: text }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -54,6 +67,7 @@ const ChatWindow: React.FC = () => {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        if (controller.signal.aborted) break;
         if (!value) continue;
         accumulated += decoder.decode(value, { stream: true });
 
@@ -67,10 +81,25 @@ const ChatWindow: React.FC = () => {
         });
       }
     } catch (err: any) {
+      const isAbortError =
+        err?.name === "AbortError" ||
+        controller.signal.aborted ||
+        userStoppedRef.current;
+
       setMessages((prev) => {
         const copy = [...prev];
         const last = copy[copy.length - 1];
         if (last?.role === "assistant") {
+          if (isAbortError) {
+            if (!last.content.trim()) {
+              copy[copy.length - 1] = {
+                ...last,
+                content: "[Stopped by user]",
+              };
+            }
+            return copy;
+          }
+
           copy[copy.length - 1] = {
             ...last,
             content: `${last.content}\n[Error] ${err?.message || String(err)}`,
@@ -79,7 +108,23 @@ const ChatWindow: React.FC = () => {
         return copy;
       });
     } finally {
+      abortControllerRef.current = null;
       setIsTyping(false);
+    }
+  };
+
+  const stopGeneration = async () => {
+    if (!isTyping) return;
+
+    userStoppedRef.current = true;
+    abortControllerRef.current?.abort();
+
+    try {
+      await fetch("/v1/chat/stop", {
+        method: "POST",
+      });
+    } catch {
+      // Frontend request is already aborted; backend stop best-effort only.
     }
   };
 
@@ -123,16 +168,17 @@ const ChatWindow: React.FC = () => {
             onKeyDown={onInputKeyDown}
             rows={1}
             placeholder="Reply..."
+            disabled={isTyping}
           />
 
           <div className="cw-right">
             <span className="cw-model">Fine-Tune</span>
-            {input.trim() ? (
+            {isTyping || input.trim() ? (
               <button
-                type="submit"
+                type={isTyping ? "button" : "submit"}
                 className="cw-send"
-                aria-label="Send"
-                disabled={isTyping}
+                aria-label={isTyping ? "Stop generation" : "Send"}
+                onClick={isTyping ? stopGeneration : undefined}
               >
                 {isTyping ? (
                   <Loader2 size={16} className="spin" />
@@ -149,12 +195,12 @@ const ChatWindow: React.FC = () => {
         </form>
 
         <p className="cw-footer-note">
-          Fine-Tune-model is AI and can make mistakes. Please double-check responses.
+          Fine-Tune-model is AI and can make mistakes. Please double-check
+          responses.
         </p>
       </div>
     </div>
   );
 };
-
 
 export default ChatWindow;
